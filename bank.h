@@ -11,8 +11,8 @@ struct Account {
 
 struct Bank {
     size_t N;
-    pthread_mutex_t mutex;
-    Account accounts[];
+    pthread_mutex_t mutex;  
+    Account accounts[];     
 };
 
 bool validAccount(Bank* bank, size_t A);

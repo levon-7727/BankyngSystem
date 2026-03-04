@@ -1,7 +1,10 @@
 #include "shm.h"
 #include <iostream>
+#include <string>
 
 int main() {
-    unlink_shm("/mybank");
+    std::string name = "/mybank";
+    unlink_shm(name);
     std::cout << "Bank destroyed\n";
+    return 0;
 }
