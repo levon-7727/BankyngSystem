@@ -1,81 +1,132 @@
 #include "bank.h"
-#include <cassert>
+#include <iostream>
 
-bool validAccount(Bank* bank, size_t A){
+bool validAccount(Bank* bank, size_t A) {
     return A < bank->N;
 }
 
-size_t getCurrent(Bank* bank, size_t A){
-    assert(validAccount(bank, A));
-    return bank->accounts[A].balance;
+size_t getCurrent(Bank* bank, size_t A) {
+    pthread_mutex_lock(&bank->mutex);
+    size_t value = bank->accounts[A].balance;
+    pthread_mutex_unlock(&bank->mutex);
+    return value;
 }
 
-size_t getMin(Bank* bank, size_t A){
-    assert(validAccount(bank, A));
-    return bank->accounts[A].minBalance;
+size_t getMin(Bank* bank, size_t A) {
+    pthread_mutex_lock(&bank->mutex);
+    size_t value = bank->accounts[A].min_balance;
+    pthread_mutex_unlock(&bank->mutex);
+    return value;
 }
 
-size_t getMax(Bank* bank, size_t A){
-    assert(validAccount(bank, A));
-    return bank->accounts[A].maxBalance;
+size_t getMax(Bank* bank, size_t A) {
+    pthread_mutex_lock(&bank->mutex);
+    size_t value = bank->accounts[A].max_balance;
+    pthread_mutex_unlock(&bank->mutex);
+    return value;
 }
 
-bool freeze(Bank* bank, size_t A){
-    if(!validAccount(bank, A)) return false;
+bool transfer(Bank* bank, size_t A, size_t B, size_t X) {
+    if (!validAccount(bank, A) || !validAccount(bank, B))
+        return false;
+
+    pthread_mutex_lock(&bank->mutex);
+
+    Account& from = bank->accounts[A];
+    Account& to   = bank->accounts[B];
+
+    if (from.frozen || to.frozen ||
+        from.balance < X ||
+        from.balance - X < from.min_balance ||
+        to.balance + X > to.max_balance) {
+        pthread_mutex_unlock(&bank->mutex);
+        return false;
+    }
+
+    from.balance -= X;
+    to.balance += X;
+
+    pthread_mutex_unlock(&bank->mutex);
+    return true;
+}
+
+bool addAll(Bank* bank, size_t X) {
+    pthread_mutex_lock(&bank->mutex);
+
+    for (size_t i = 0; i < bank->N; ++i) {
+        if (!bank->accounts[i].frozen &&
+            bank->accounts[i].balance + X > bank->accounts[i].max_balance) {
+            pthread_mutex_unlock(&bank->mutex);
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < bank->N; ++i) {
+        if (!bank->accounts[i].frozen)
+            bank->accounts[i].balance += X;
+    }
+
+    pthread_mutex_unlock(&bank->mutex);
+    return true;
+}
+
+bool subAll(Bank* bank, size_t X) {
+    pthread_mutex_lock(&bank->mutex);
+
+    for (size_t i = 0; i < bank->N; ++i) {
+        if (!bank->accounts[i].frozen &&
+            (bank->accounts[i].balance < X ||
+             bank->accounts[i].balance - X < bank->accounts[i].min_balance)) {
+            pthread_mutex_unlock(&bank->mutex);
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < bank->N; ++i) {
+        if (!bank->accounts[i].frozen)
+            bank->accounts[i].balance -= X;
+    }
+
+    pthread_mutex_unlock(&bank->mutex);
+    return true;
+}
+
+bool setMin(Bank* bank, size_t A, size_t X) {
+    if (!validAccount(bank, A)) return false;
+
+    pthread_mutex_lock(&bank->mutex);
+    bank->accounts[A].min_balance = X;
+    pthread_mutex_unlock(&bank->mutex);
+
+    return true;
+}
+
+bool setMax(Bank* bank, size_t A, size_t X) {
+    if (!validAccount(bank, A)) return false;
+
+    pthread_mutex_lock(&bank->mutex);
+    bank->accounts[A].max_balance = X;
+    pthread_mutex_unlock(&bank->mutex);
+
+    return true;
+}
+
+bool freeze(Bank* bank, size_t A) {
+    if (!validAccount(bank, A)) return false;
+
+    pthread_mutex_lock(&bank->mutex);
     bank->accounts[A].frozen = true;
+    pthread_mutex_unlock(&bank->mutex);
+
     return true;
 }
 
-bool unfreeze(Bank* bank, size_t A){
-    if(!validAccount(bank, A)) return false;
+bool unfreeze(Bank* bank, size_t A) {
+    if (!validAccount(bank, A)) return false;
+
+    pthread_mutex_lock(&bank->mutex);
     bank->accounts[A].frozen = false;
-    return true;    
-} 
+    pthread_mutex_unlock(&bank->mutex);
 
-bool transfer(Bank* bank, size_t A, size_t B, size_t x){
-    if(!validAccount(bank, A)  !validAccount(bank, B)  x <= 0) return false;
-    if(bank->accounts[A].frozen  bank->accounts[B].frozen) return false;
-    if(bank->accounts[A].balance - x < bank->accounts[A].minBalance) return false;
-    if(bank->accounts[B].balance + x > bank->accounts[B].maxBalance) return false;
-    bank->accounts[A].balance -= x;
-    bank->accounts[B].balance += x;
-    return true;
-}
-
-bool addAll(Bank* bank, size_t x){
-    for(int i = 0; i < bank->N; i++){
-        if(bank->accounts[i].frozen  bank->accounts[i].balance + x > bank->accounts[i].maxBalance){
-            return false;
-        }
-    }
-    for(int i = 0; i < bank->N; i++){
-        bank->accounts[i].balance += x;
-    }
-    return true;
-}
-
-bool subAll(Bank* bank, size_t x){
-    for(int i = 0; i < bank->N; i++){
-        if(bank->accounts[i].frozen || bank->accounts[i].balance - x < bank->accounts[i].minBalance){
-            return false;
-        }
-    }
-    for(int i = 0; i < bank->N; i++){
-        bank->accounts[i].balance -= x;
-    }
-    return true;
-}
-
-bool setMin(Bank* bank, size_t A, size_t x){
-    if(!validAccount(bank, A)) return false;
-    if(bank->accounts[A].balance < x) return false;
-    bank->accounts[A].minBalance = x;
-    return true;
-}
-
-bool setMax(Bank* bank, size_t A, size_t x){
-    if(!validAccount(bank, A)) return false;
-    if(bank->accounts[A].balance > x) return false;
-    bank->accounts[A].maxBalance = x;
     return true;
 }

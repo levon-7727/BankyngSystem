@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdexcept>
+#include <pthread.h>
+#include <iostream>
 
 SharedMemory create_shm(std::string& name, size_t size){
     SharedMemory shm{};
@@ -21,6 +23,13 @@ SharedMemory create_shm(std::string& name, size_t size){
         throw std::runtime_error("mmap failed");
     }
     shm.size = size;
+
+    Bank* bank = static_cast<Bank*>(shm.address);
+
+    pthread_mutexattr_t attr;
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+    pthread_mutexattr_destroy(&attr);
     return shm;
 }
 

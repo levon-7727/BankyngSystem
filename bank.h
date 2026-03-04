@@ -1,4 +1,6 @@
 #pragma once
+#include <pthread.h>
+#include <cstddef>
 
 struct Account {
     size_t balance;
@@ -9,6 +11,7 @@ struct Account {
 
 struct Bank {
     size_t N;
+    pthread_mutex_t mutex;
     Account accounts[];
 };
 
