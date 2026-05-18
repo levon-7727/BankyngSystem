@@ -1,85 +1,47 @@
-#include "shm.h"
-#include "bank.h"
 #include <iostream>
 #include <string>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+#define PORT 8080
 
 int main() {
-    size_t N = 5;
-    size_t bankSize = sizeof(Bank) + N * sizeof(Account);
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    std::string name = "/mybank";
-    SharedMemory shm = open_shm(std::string(name), bankSize);
-    Bank* bank = static_cast<Bank*>(shm.address);
+    sockaddr_in server_addr{};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
 
-    std::cout << "Bank opened\n";
-    std::cout << "Enter commands:\n";
+    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
 
-    std::string cmd;
-    while (std::cin >> cmd) {
-        if (cmd == "current") {
-            size_t A; std::cin >> A;
-            if (validAccount(bank, A))
-                std::cout << "Balance[" << A << "] = " << getCurrent(bank, A) << "\n";
-            else
-                std::cout << "Invalid account\n";
-        }
-        else if (cmd == "transfer") {
-            size_t A, B, X; std::cin >> A >> B >> X;
-            if (transfer(bank, A, B, X))
-                std::cout << "Transfer successful\n";
-            else
-                std::cout << "Transfer failed\n";
-        }
-        else if (cmd == "addAll") {
-            size_t X; std::cin >> X;
-            if (addAll(bank, X))
-                std::cout << "Added to all accounts\n";
-            else
-                std::cout << "Failed\n";
-        }
-        else if (cmd == "subAll") {
-            size_t X; std::cin >> X;
-            if (subAll(bank, X))
-                std::cout << "Subtracted from all accounts\n";
-            else
-                std::cout << "Failed\n";
-        }
-        else if (cmd == "freeze") {
-            size_t A; std::cin >> A;
-            if (freeze(bank, A))
-                std::cout << "Account frozen\n";
-            else
-                std::cout << "Failed\n";
-        }
-        else if (cmd == "unfreeze") {
-            size_t A; std::cin >> A;
-            if (unfreeze(bank, A))
-                std::cout << "Account unfrozen\n";
-            else
-                std::cout << "Failed\n";
-        }
-        else if (cmd == "setMin") {
-            size_t A, X; std::cin >> A >> X;
-            if (setMin(bank, A, X))
-                std::cout << "Min balance set\n";
-            else
-                std::cout << "Failed\n";
-        }
-        else if (cmd == "setMax") {
-            size_t A, X; std::cin >> A >> X;
-            if (setMax(bank, A, X))
-                std::cout << "Max balance set\n";
-            else
-                std::cout << "Failed\n";
-        }
-        else if (cmd == "exit") {
-            break;
-        }
-        else {
-            std::cout << "Unknown command\n";
-        }
+    if (connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        std::cout << "Connection failed\n";
+        return 1;
     }
 
-    close_shm(shm);
+    std::cout << "Connected to server\n";
+
+    std::string line;
+    char buffer[1024];
+
+    while (true) {
+        std::getline(std::cin, line);
+
+        if (line == "exit")
+            break;
+
+        write(sock, line.c_str(), line.size());
+
+        int bytes = read(sock, buffer, sizeof(buffer) - 1);
+
+        if (bytes <= 0)
+            break;
+
+        buffer[bytes] = '\0';
+
+        std::cout << "Server: " << buffer << "\n";
+    }
+
+    close(sock);
     return 0;
 }

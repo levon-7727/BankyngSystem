@@ -6,7 +6,8 @@ int main() {
     size_t N = 5;  
     size_t bankSize = sizeof(Bank) + N * sizeof(Account);
 
-    SharedMemory shm = create_shm(std::string("/mybank"), bankSize);
+    std::string name = "/mybank";
+    SharedMemory shm = create_shm(name, bankSize);
     Bank* bank = static_cast<Bank*>(shm.address);
     bank->N = N;
 
